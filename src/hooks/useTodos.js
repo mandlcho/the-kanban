@@ -1,131 +1,132 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { supabase } from "../supabaseClient";
+import { useSession } from "./useSession";
 
 export const TODO_PRIORITIES = ["high", "medium", "low"];
 export const DEFAULT_PRIORITY = "medium";
 
-const STORAGE_KEY = "todo-react-app::todos";
-const VALID_PRIORITIES = new Set(TODO_PRIORITIES);
-const EMPTY_STATE = { todos: [], archived: [] };
-
-const normalizeTodo = (todo, { archived = false } = {}) => {
-  if (!todo || typeof todo !== "object") {
-    return null;
-  }
-  const hasStatus = typeof todo.status === "string";
-  const rawStatus = hasStatus
-    ? todo.status
-    : todo.completed
-    ? "completed"
-    : "backlog";
-  const description =
-    typeof todo.description === "string" ? todo.description : "";
-  const createdAt =
-    typeof todo.createdAt === "string"
-      ? todo.createdAt
-      : new Date().toISOString();
-  const activatedAt =
-    typeof todo.activatedAt === "string" ? todo.activatedAt : null;
-  const completedAt =
-    typeof todo.completedAt === "string" ? todo.completedAt : null;
-  const dueDate =
-    typeof todo.dueDate === "string" && todo.dueDate.trim()
-      ? todo.dueDate.trim()
-      : null;
-  const priority =
-    typeof todo.priority === "string" && VALID_PRIORITIES.has(todo.priority)
-      ? todo.priority
-      : DEFAULT_PRIORITY;
-  const status = archived ? "completed" : rawStatus;
-  const isCompleted = status === "completed";
-  const archivedAt =
-    typeof todo.archivedAt === "string"
-      ? todo.archivedAt
-      : archived
-      ? completedAt ?? null
-      : null;
-  const categories = Array.isArray(todo.categories)
-    ? Array.from(
-        new Set(
-          todo.categories
-            .map((category) =>
-              typeof category === "string" ? category.trim() : null
-            )
-            .filter(Boolean)
-        )
-      )
-    : [];
-
-  return {
-    ...todo,
-    status,
-    description,
-    createdAt,
-    activatedAt,
-    completedAt: isCompleted ? completedAt : null,
-    completed: isCompleted,
-    priority,
-    archivedAt,
-    dueDate,
-    categories
-  };
-};
-
-const readInitialState = () => {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_STATE;
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      const todos = parsed
-        .map((todo) => normalizeTodo(todo))
-        .filter(Boolean);
-      return { todos, archived: [] };
-    }
-    if (parsed && typeof parsed === "object") {
-      const todos = Array.isArray(parsed.todos) ? parsed.todos : [];
-      const archived = Array.isArray(parsed.archived) ? parsed.archived : [];
-      return {
-        todos: todos.map((todo) => normalizeTodo(todo)).filter(Boolean),
-        archived: archived
-          .map((todo) => normalizeTodo(todo, { archived: true }))
-          .filter(Boolean)
-      };
-    }
-  } catch (error) {
-    console.warn("Failed to read todos from storage", error);
-  }
-  return EMPTY_STATE;
-};
-
 export function useTodos() {
-  const initialState = useMemo(() => readInitialState(), []);
-  const [todos, setTodos] = useState(initialState.todos);
-  const [archivedTodos, setArchivedTodos] = useState(initialState.archived);
+  const { session } = useSession();
+  const [todos, setTodos] = useState([]);
+  const [archivedTodos, setArchivedTodos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const user = session?.user;
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ todos, archived: archivedTodos })
-      );
-    } catch (error) {
-      console.warn("Failed to persist todos", error);
+    if (!user) return;
+
+    const fetchTodos = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("todos")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching todos:", error);
+      } else {
+        setTodos(data.filter(todo => !todo.archivedAt));
+        setArchivedTodos(data.filter(todo => todo.archivedAt));
+      }
+      setLoading(false);
+    };
+
+    fetchTodos();
+
+    const subscription = supabase.channel('public:todos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, payload => {
+        if (payload.eventType === 'INSERT') {
+          setTodos(currentTodos => [payload.new, ...currentTodos]);
+        }
+        if (payload.eventType === 'UPDATE') {
+          setTodos(currentTodos =>
+            currentTodos.map(todo =>
+              todo.id === payload.new.id ? payload.new : todo
+            )
+          );
+        }
+        if (payload.eventType === 'DELETE') {
+          setTodos(currentTodos =>
+            currentTodos.filter(todo => todo.id !== payload.old.id)
+          );
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user]);
+
+  const addTodo = async (todo) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from("todos")
+      .insert([{ ...todo, user_id: user.id }])
+      .select();
+
+    if (error) {
+      console.error("Error adding todo:", error);
+      return null;
     }
-  }, [todos, archivedTodos]);
+    return data[0];
+  };
+
+  const updateTodo = async (id, updates) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("todos")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating todo:", error);
+    }
+  };
+
+  const deleteTodo = async (id) => {
+    if (!user) return;
+
+    const { error } = await supabase.from("todos").delete().eq("id", id);
+
+    if (error) {
+      console.error("Error deleting todo:", error);
+    }
+  };
+
 
   const stats = useMemo(() => {
     const total = todos.length;
-    const completed = todos.filter((todo) => todo.status === "completed").length;
-    const active = todos.filter((todo) => todo.status === "active").length;
-    const backlog = todos.filter((todo) => todo.status === "backlog").length;
+    const completed = todos.filter((todo) => todo.is_complete).length;
+    const active = todos.filter(
+      (todo) => !todo.is_complete && todo.status === "active"
+    ).length;
+    const backlog = todos.filter(
+      (todo) => !todo.is_complete && todo.status === "backlog"
+    ).length;
     return {
       total,
       backlog,
       active,
       completed,
-      remaining: total - completed
+      remaining: total - completed,
     };
   }, [todos]);
 
-  return { todos, setTodos, stats, archivedTodos, setArchivedTodos };
+  return {
+    todos,
+    setTodos,
+    archivedTodos,
+    setArchivedTodos,
+    stats,
+    addTodo,
+    updateTodo,
+    deleteTodo,
+    loading,
+  };
 }
+
+

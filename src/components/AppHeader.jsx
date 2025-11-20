@@ -1,12 +1,20 @@
 import PropTypes from "prop-types";
 import ThemeToggle from "./ThemeToggle";
+import { useSession } from "../hooks/useSession";
+import { supabase } from "../supabaseClient";
 
 function AppHeader({ viewMode, onViewModeChange, themeMode, onThemeModeChange }) {
+  const { session } = useSession();
+
   return (
     <header className="app-header">
       <div className="app-header-top">
         <h1>tasks</h1>
         <div className="header-controls">
+          {session && <p>{session.user.email}</p>}
+          <button className="button" onClick={() => supabase.auth.signOut()}>
+            Logout
+          </button>
           <ThemeToggle value={themeMode} onChange={onThemeModeChange} />
           <div className="view-toggles" role="group" aria-label="view mode">
             <button
