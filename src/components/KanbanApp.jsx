@@ -226,7 +226,7 @@ function KanbanApp() {
   const listDragAndDrop = useListDragAndDrop({
     isEnabled: isListView,
     todos: filteredTodos,
-    setTodos: (fn) => setTodos(fn(todos)))
+    setTodos
   });
 
   const boardDragAndDrop = useBoardDragAndDrop({
@@ -540,4 +540,3 @@ function KanbanApp() {
 }
 
 export default KanbanApp;
-
