@@ -1,17 +1,37 @@
-import { useSession } from './hooks/useSession';
-import Auth from './components/Auth';
-import KanbanApp from './components/KanbanApp';
-import './App.css';
+import { useSession } from "./hooks/useSession";
+import Auth from "./components/Auth";
+import KanbanApp from "./components/KanbanApp";
+import "./App.css";
 
 function App() {
-  const { session } = useSession();
+  const { session, error, isSupabaseConfigured } = useSession();
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="container" style={{ padding: "50px 0 100px 0" }}>
+        <h2>Supabase is not configured</h2>
+        <p>
+          Provide <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> as build
+          environment variables so authentication can run in production.
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container" style={{ padding: "50px 0 100px 0" }}>
+        <h2>Unable to connect to Supabase</h2>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container" style={{ padding: '50px 0 100px 0' }}>
+    <div className="container" style={{ padding: "50px 0 100px 0" }}>
       {!session ? <Auth /> : <KanbanApp key={session.user.id} session={session} />}
     </div>
   );
 }
 
 export default App;
-
