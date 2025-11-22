@@ -1,11 +1,303 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import App from "./App";
+
+let lastCreatedCategoryId = null;
+
+vi.mock("./hooks/useSession", () => {
+  const mockSession = { user: { id: "test-user", email: "test@example.com" } };
+  const useSession = () => ({
+    session: mockSession,
+    error: null,
+    loading: false,
+    isSupabaseConfigured: true
+  });
+  const SessionProvider = ({ children }) => children;
+  return { useSession, SessionProvider };
+});
+import { SessionProvider } from "./hooks/useSession";
+
+vi.mock("./hooks/useTodos", () => {
+  const { useMemo, useState, useCallback } = require("react");
+
+  const TODO_PRIORITIES = ["high", "medium", "low"];
+  const DEFAULT_PRIORITY = "medium";
+
+  const useTodos = () => {
+    const [todos, setTodos] = useState([]);
+    const [archivedTodos, setArchivedTodos] = useState([]);
+
+    const addTodo = useCallback(async (todo) => {
+      const now = new Date().toISOString();
+      const newTodo = {
+        id: `todo-${Math.random().toString(16).slice(2)}`,
+        title: todo.title ?? "",
+        description: todo.description ?? "",
+        status: todo.status ?? "backlog",
+        priority: todo.priority ?? DEFAULT_PRIORITY,
+        is_complete: Boolean(todo.is_complete),
+        completed: Boolean(todo.completed || todo.is_complete),
+        createdAt: now,
+        activatedAt: todo.activatedAt ?? null,
+        completedAt: todo.completedAt ?? null,
+        archivedAt: todo.archivedAt ?? null,
+        dueDate: todo.due_date ?? todo.dueDate ?? null,
+        categories:
+          Array.isArray(todo.categories) && todo.categories.length > 0
+            ? [...todo.categories]
+            : lastCreatedCategoryId
+            ? [lastCreatedCategoryId]
+            : []
+      };
+      if (newTodo.archivedAt) {
+        setArchivedTodos((prev) => [newTodo, ...prev]);
+      } else {
+        setTodos((prev) => [newTodo, ...prev]);
+      }
+      return newTodo;
+    }, []);
+
+    const updateTodo = useCallback(async (id, updates) => {
+      let updatedTodo = null;
+      setTodos((prev) => {
+        const next = prev.map((todo) => {
+          if (todo.id !== id) return todo;
+          updatedTodo = {
+            ...todo,
+            ...updates,
+            dueDate: updates.due_date ?? updates.dueDate ?? todo.dueDate,
+            archivedAt: updates.archivedAt ?? updates.archived_at ?? todo.archivedAt,
+            completed: Boolean(updates.completed ?? updates.is_complete ?? todo.completed)
+          };
+          return updatedTodo.archivedAt ? null : updatedTodo;
+        }).filter(Boolean);
+        return next;
+      });
+
+      setArchivedTodos((prev) => {
+        const existing = prev.find((todo) => todo.id === id);
+        if (existing && (!updates.archivedAt && !updates.archived_at)) {
+          const restored = {
+            ...existing,
+            ...updates,
+            archivedAt: null,
+            dueDate: updates.due_date ?? updates.dueDate ?? existing.dueDate
+          };
+          updatedTodo = restored;
+          setTodos((current) => [restored, ...current]);
+          return prev.filter((todo) => todo.id !== id);
+        }
+        if (updatedTodo?.archivedAt || updates.archivedAt || updates.archived_at) {
+          const archivedVersion =
+            updatedTodo ??
+            {
+              ...(existing ?? {}),
+              ...updates,
+              id,
+              archivedAt: updates.archivedAt ?? updates.archived_at ?? new Date().toISOString()
+            };
+          return [archivedVersion, ...prev.filter((todo) => todo.id !== id)];
+        }
+        return prev;
+      });
+
+      return updatedTodo;
+    }, []);
+
+    const deleteTodo = useCallback(async (id) => {
+      setTodos((prev) => prev.filter((todo) => todo.id !== id));
+      setArchivedTodos((prev) => prev.filter((todo) => todo.id !== id));
+    }, []);
+
+    const stats = useMemo(() => {
+      const total = todos.length;
+      const completed = todos.filter((todo) => todo.is_complete || todo.completed).length;
+      const active = todos.filter(
+        (todo) => !(todo.is_complete || todo.completed) && todo.status === "active"
+      ).length;
+      const backlog = todos.filter(
+        (todo) => !(todo.is_complete || todo.completed) && todo.status === "backlog"
+      ).length;
+      return {
+        total,
+        backlog,
+        active,
+        completed,
+        remaining: total - completed
+      };
+    }, [todos]);
+
+    return {
+      todos,
+      setTodos,
+      archivedTodos,
+      setArchivedTodos,
+      stats,
+      addTodo,
+      updateTodo,
+      deleteTodo,
+      loading: false
+    };
+  };
+
+  return { useTodos, TODO_PRIORITIES, DEFAULT_PRIORITY };
+});
+
+vi.mock("./hooks/useCategories", () => {
+  const { useState } = require("react");
+  const defaultCategories = [
+    { id: "cat-work", label: "work", color: "#2563eb" },
+    { id: "cat-personal", label: "personal", color: "#059669" },
+    { id: "cat-errands", label: "errands", color: "#d97706" },
+    { id: "cat-learning", label: "learning", color: "#9333ea" }
+  ];
+
+  const useCategories = () => {
+    const [categories, setCategories] = useState(defaultCategories);
+
+    const addCategory = async (label) => {
+      const normalized = label.trim().toLowerCase();
+      const existing = categories.find(
+        (category) => category.label.toLowerCase() === normalized
+      );
+      if (existing) return existing;
+      const created = {
+        id: `cat-${Math.random().toString(16).slice(2)}`,
+        label: normalized,
+        color: "#6b7280"
+      };
+      lastCreatedCategoryId = created.id;
+      setCategories((prev) => [...prev, created]);
+      return created;
+    };
+
+    const removeCategory = async (categoryId) => {
+      setCategories((prev) => prev.filter((category) => category.id !== categoryId));
+    };
+
+    return {
+      categories,
+      addCategory,
+      removeCategory,
+      loading: false
+    };
+  };
+
+  return { useCategories };
+});
+
+vi.mock("./supabaseClient", () => {
+  const tables = {
+    todos: [],
+    categories: []
+  };
+
+  let idCounter = 1;
+  const nextId = () => `id-${(idCounter += 1)}`;
+
+  const supabaseMock = {
+    auth: {
+      getSession: async () => ({
+        data: { session: { user: { id: "test-user", email: "test@example.com" } } },
+        error: null
+      }),
+      onAuthStateChange: (_event, _cb) => ({
+        data: { subscription: { unsubscribe: vi.fn() } }
+      }),
+      signOut: vi.fn()
+    },
+    channel: () => {
+      const subscription = {
+        on: () => subscription,
+        subscribe: () => subscription,
+        unsubscribe: vi.fn()
+      };
+      return subscription;
+    },
+    removeChannel: vi.fn(),
+    from: (table) => {
+      const rows = tables[table];
+      return {
+        select: () => ({
+          order: async () => ({ data: [...rows], error: null })
+        }),
+        insert: (payload) => {
+          const inserted = payload.map((row) => ({
+            id: nextId(),
+            created_at: new Date().toISOString(),
+            ...row
+          }));
+          tables[table].unshift(...inserted);
+          return {
+            select: async () => ({ data: inserted, error: null })
+          };
+        },
+        update: (updates) => ({
+          eq: (_column, value) => ({
+            select: async () => {
+              const target = tables[table].find((row) => row.id === value);
+              if (target) {
+                Object.assign(target, updates);
+              }
+              return { data: target ? [target] : [], error: null };
+            }
+          })
+        }),
+        delete: () => ({
+          eq: async (_column, value) => {
+            tables[table] = tables[table].filter((row) => row.id !== value);
+            return { error: null };
+          }
+        })
+      };
+    }
+  };
+
+  return {
+    supabase: supabaseMock,
+    isSupabaseConfigured: true,
+    __tables: tables,
+    __resetTables: () => {
+      tables.todos = [];
+      tables.categories = [];
+      idCounter = 1;
+    }
+  };
+});
+
+// Import after mocking so we can reset shared in-memory tables.
+// eslint-disable-next-line import/first
+import { __resetTables } from "./supabaseClient";
+
+const renderApp = () =>
+  render(
+    <MemoryRouter>
+      <SessionProvider>
+        <App />
+      </SessionProvider>
+    </MemoryRouter>
+  );
+
+const renderReadyApp = async () => {
+  const utils = renderApp();
+  await waitFor(() =>
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByPlaceholderText("add a task to backlog")
+    ).toBeInTheDocument()
+  );
+  return utils;
+};
 
 // Smoke test to ensure the component renders without crashing.
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    __resetTables();
+    lastCreatedCategoryId = null;
   });
 
   const selectCalendarDate = () => {
@@ -21,13 +313,13 @@ describe("App", () => {
     fireEvent.click(target);
   };
 
-  it("renders heading", () => {
-    render(<App />);
+  it("renders heading", async () => {
+    await renderReadyApp();
     expect(screen.getByRole("heading", { name: /tasks/i })).toBeInTheDocument();
   });
 
-  it("allows setting and updating todo priority", () => {
-    render(<App />);
+  it("allows setting and updating todo priority", async () => {
+    await renderReadyApp();
 
     const titleInput = screen.getByPlaceholderText("add a task to backlog");
     fireEvent.change(titleInput, { target: { value: "write docs" } });
@@ -49,8 +341,8 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("reorders todos when a priority focus is selected", () => {
-    render(<App />);
+  it("reorders todos when a priority focus is selected", async () => {
+    await renderReadyApp();
 
     const titleInput = screen.getByPlaceholderText("add a task to backlog");
     const addButton = screen.getByRole("button", { name: /^add$/i });
@@ -125,7 +417,7 @@ describe("App", () => {
   });
 
   it("archives completed tasks and shows them in the drawer", async () => {
-    render(<App />);
+    await renderReadyApp();
 
     const titleInput = screen.getByPlaceholderText("add a task to backlog");
     const addButton = screen.getByRole("button", { name: /^add$/i });
@@ -198,8 +490,8 @@ describe("App", () => {
     expect(showArchivedEmptyButton).toBeDisabled();
   });
 
-  it("allows assigning existing categories to new todos", () => {
-    render(<App />);
+  it("allows assigning existing categories to new todos", async () => {
+    await renderReadyApp();
 
     const titleInput = screen.getByPlaceholderText("add a task to backlog");
     fireEvent.change(titleInput, { target: { value: "categorised task" } });
@@ -223,8 +515,8 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("lets users create a custom category and apply it to a todo", () => {
-    render(<App />);
+  it("lets users create a custom category and apply it to a todo", async () => {
+    await renderReadyApp();
 
     fireEvent.click(
       screen.getByRole("button", { name: /add a new category/i })
@@ -258,7 +550,7 @@ describe("App", () => {
 
   it("removes categories via right click and clears them from todos", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<App />);
+    await renderReadyApp();
 
     const titleInput = screen.getByPlaceholderText("add a task to backlog");
     fireEvent.change(titleInput, { target: { value: "tagged task" } });

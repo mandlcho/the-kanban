@@ -28,6 +28,7 @@ function CategoryPanel({
       setError("category already exists.");
       return;
     }
+    onToggleCategory(created.id);
     setNewLabel("");
     setError("");
     setIsAdding(false);
