@@ -206,6 +206,14 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+.auth-input::placeholder {
+  color: color-mix(in srgb, var(--color-placeholder) 50%, transparent);
+}
+
+.auth-input[type="password"]::placeholder {
+  color: color-mix(in srgb, var(--color-placeholder) 50%, transparent);
+}
+
 .auth-input:focus-visible {
   outline: none;
   border-color: var(--color-border-strong);
@@ -224,7 +232,7 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  border-radius: 0.8rem;
+  border-radius: 999px;
   padding: 0.65rem 0.9rem;
   cursor: pointer;
 }
@@ -250,6 +258,7 @@
   background: var(--color-border-strong);
   color: var(--color-surface);
   border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
 }
 
 .button.primary:disabled {
@@ -260,6 +269,7 @@
   background: transparent;
   color: var(--color-text);
   border: 1px dashed var(--color-border-strong);
+  border-radius: 999px;
 }
 
 .view-toggles {

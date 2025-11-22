@@ -65,20 +65,20 @@ export default function Auth() {
             <input
               id="password"
               className="auth-input"
-              type={showPassword ? "text" : "password"}
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
             <button
               type="button"
               className="auth-toggle-password"
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? "hide" : "show"}
+              {showPassword ? "🙈" : "👁"}
             </button>
           </div>
 
