@@ -8,6 +8,15 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
 
+  const getRedirectUrl = () => {
+    const envUrl = import.meta.env.VITE_SITE_URL;
+    if (envUrl) return envUrl;
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return window.location.origin;
+    }
+    return undefined;
+  };
+
   const handleSubmit = async (event, mode) => {
     event.preventDefault();
     if (loading) return;
@@ -17,7 +26,11 @@ export default function Auth() {
       setLoading(true);
       const isSignup = mode === "signup";
       const { error } = isSignup
-        ? await supabase.auth.signUp({ email, password })
+        ? await supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: getRedirectUrl() }
+          })
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {

@@ -70,5 +70,8 @@ For local dev, create `.env` at the repo root:
 ```
 VITE_SUPABASE_URL=your-project-url
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SITE_URL=https://your-pages-domain.github.io/your-repo
 ```
 Restart `npm run dev` after editing env vars.
+
+> Make sure `VITE_SITE_URL` matches your deployed domain and add that domain to Supabase **Authentication → URL Configuration → Redirect URLs** so email verification links land back on your site instead of localhost.
