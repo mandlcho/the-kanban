@@ -340,11 +340,8 @@ export function useTodos() {
       ({ data, error } = await attemptInsert(supportsCategories));
 
       if (error && supportsCategories) {
-        const msg = (error.message || "").toLowerCase();
-        if (msg.includes("categories") && msg.includes("column")) {
-          setSupportsCategories(false);
-          ({ data, error } = await attemptInsert(false));
-        }
+        setSupportsCategories(false);
+        ({ data, error } = await attemptInsert(false));
       }
 
       if (error) {
@@ -400,11 +397,8 @@ export function useTodos() {
     ({ data, error } = await attemptUpdate(supportsCategories));
 
     if (error && supportsCategories) {
-      const msg = (error.message || "").toLowerCase();
-      if (msg.includes("categories") && msg.includes("column")) {
-        setSupportsCategories(false);
-        ({ data, error } = await attemptUpdate(false));
-      }
+      setSupportsCategories(false);
+      ({ data, error } = await attemptUpdate(false));
     }
 
     if (error) {
@@ -467,11 +461,8 @@ export function useTodos() {
     ({ data, error } = await attemptUpdate(supportsCategories));
 
     if (error && supportsCategories) {
-      const msg = (error.message || "").toLowerCase();
-      if (msg.includes("categories") && msg.includes("column")) {
-        setSupportsCategories(false);
-        ({ data, error } = await attemptUpdate(false));
-      }
+      setSupportsCategories(false);
+      ({ data, error } = await attemptUpdate(false));
     }
 
     if (error) {
