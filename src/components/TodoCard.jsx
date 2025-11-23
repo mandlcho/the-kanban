@@ -36,6 +36,7 @@ const hasArchivedPayload = (event) => {
 function TodoCard({
   todo,
   actions,
+  syncState = "synced",
   dragState = null,
   categoryLookup = null,
   animationRef = null,
@@ -190,6 +191,13 @@ function TodoCard({
     onDrop: handleDrop
   };
 
+  const syncLabel =
+    syncState === "syncing"
+      ? "syncing…"
+      : syncState === "failed"
+      ? "sync failed"
+      : "synced";
+
   return (
     <li
       className={className}
@@ -215,6 +223,9 @@ function TodoCard({
           >
             {currentPriority}
           </button>
+          <span className={`todo-sync-status status-${syncState}`}>
+            {syncLabel}
+          </span>
           <button
             type="button"
             className="todo-dismiss"

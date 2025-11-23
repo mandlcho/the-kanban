@@ -74,6 +74,11 @@ function TodoList({
             onUpdateStatus={actions.updateTodoStatus}
             onUpdatePriority={actions.updateTodoPriority}
             onDismiss={actions.handleDismiss}
+            syncState={
+              actions.syncStateById instanceof Map
+                ? actions.syncStateById.get(todo.id) ?? "synced"
+                : "synced"
+            }
             dragState={dragState}
             categoryLookup={categoryLookup}
             calendarFocusDate={calendarFocusDate}

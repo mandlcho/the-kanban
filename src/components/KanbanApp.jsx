@@ -32,6 +32,7 @@ function KanbanApp() {
     stats, 
     archivedTodos, 
     setArchivedTodos, 
+    syncStateById,
     addTodo, 
     updateTodo, 
     deleteTodo,
@@ -302,7 +303,14 @@ function KanbanApp() {
         categories: [...selectedCategories]
       };
 
-      await addTodo(nextTodo);
+      const result = await addTodo(nextTodo);
+      if (!result?.success || !result?.todo) {
+        setComposerError(
+          result?.error?.message ||
+            "unable to save that task right now. please try again."
+        );
+        return;
+      }
       
       setTitle("");
       setDescription("");
@@ -429,9 +437,17 @@ function KanbanApp() {
       moveToActive,
       updateTodoStatus,
       updateTodoPriority,
-      handleDismiss
+      handleDismiss,
+      syncStateById
     }),
-    [toggleTodo, moveToActive, updateTodoStatus, updateTodoPriority, handleDismiss]
+    [
+      toggleTodo,
+      moveToActive,
+      updateTodoStatus,
+      updateTodoPriority,
+      handleDismiss,
+      syncStateById
+    ]
   );
 
   const handleToggleArchive = useCallback(() => {

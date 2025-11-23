@@ -55,7 +55,7 @@ vi.mock("./hooks/useTodos", () => {
       } else {
         setTodos((prev) => [newTodo, ...prev]);
       }
-      return newTodo;
+      return { success: true, todo: newTodo };
     }, []);
 
     const updateTodo = useCallback(async (id, updates) => {

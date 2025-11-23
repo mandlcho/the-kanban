@@ -111,6 +111,11 @@ function TodoBoard({
                       key={todo.id}
                       todo={todo}
                       actions={actions}
+                      syncState={
+                        actions.syncStateById instanceof Map
+                          ? actions.syncStateById.get(todo.id) ?? "synced"
+                          : "synced"
+                      }
                       dragState={cardDnD}
                       categoryLookup={categoryLookup}
                       animationRef={registerCard(todo.id)}

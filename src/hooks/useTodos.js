@@ -4,6 +4,10 @@ import { useSession } from "./useSession";
 
 export const TODO_PRIORITIES = ["high", "medium", "low"];
 export const DEFAULT_PRIORITY = "medium";
+const createId = () =>
+  (typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `tmp-${Math.random().toString(16).slice(2)}`);
 
 const mapTodoFromDatabase = (row) => {
   if (!row) return null;
@@ -84,8 +88,42 @@ export function useTodos() {
   const [todos, setTodos] = useState([]);
   const [archivedTodos, setArchivedTodos] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [syncStateById, setSyncStateById] = useState(new Map());
   const user = session?.user;
+
+  const refreshTodos = useCallback(async () => {
+    if (!user) {
+      setTodos([]);
+      setArchivedTodos([]);
+      setLoading(false);
+      setSyncStateById(new Map());
+      return { data: [], error: null };
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("todos")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching todos:", error);
+      setLoading(false);
+      return { data: [], error };
+    }
+
+    const mapped = (data ?? []).map(mapTodoFromDatabase).filter(Boolean);
+    const { active, archived } = splitTodosByArchive(mapped);
+    setTodos(active);
+    setArchivedTodos(archived);
+    setSyncStateById((prev) => {
+      const next = new Map(prev);
+      mapped.forEach((todo) => next.set(todo.id, "synced"));
+      return next;
+    });
+    setLoading(false);
+    return { data: mapped, error: null };
+  }, [user]);
 
   const upsertTodoInState = useCallback((nextTodo) => {
     if (!nextTodo) return;
@@ -114,27 +152,7 @@ export function useTodos() {
       return undefined;
     }
 
-    const fetchTodos = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("todos")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching todos:", error);
-        setLoading(false);
-        return;
-      }
-
-      const mapped = (data ?? []).map(mapTodoFromDatabase).filter(Boolean);
-      const { active, archived } = splitTodosByArchive(mapped);
-      setTodos(active);
-      setArchivedTodos(archived);
-      setLoading(false);
-    };
-
-    fetchTodos();
+    refreshTodos();
 
     const subscription = supabase
       .channel("public:todos")
@@ -160,10 +178,28 @@ export function useTodos() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [user, upsertTodoInState, removeTodoFromState]);
+  }, [user, upsertTodoInState, removeTodoFromState, refreshTodos]);
 
   const addTodo = async (todo) => {
-    if (!user) return null;
+    if (!user) return { success: false, error: new Error("User not authenticated.") };
+
+    const tempId = todo?.id ?? createId();
+    const optimistic = mapTodoFromDatabase({
+      id: tempId,
+      ...mapTodoToDatabase(todo),
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      archived_at: null
+    });
+
+    if (optimistic) {
+      upsertTodoInState(optimistic);
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(tempId, "syncing");
+        return next;
+      });
+    }
 
     const { data, error } = await supabase
       .from("todos")
@@ -172,18 +208,67 @@ export function useTodos() {
 
     if (error) {
       console.error("Error adding todo:", error);
-      return null;
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(tempId, "failed");
+        return next;
+      });
+      return { success: false, error };
     }
 
     const created = mapTodoFromDatabase(data?.[0]);
     if (created) {
-      upsertTodoInState(created);
+      setTodos((current) => {
+        const filtered = current.filter((item) => item.id !== tempId && item.id !== created.id);
+        return created.archivedAt ? filtered : [created, ...filtered];
+      });
+      setArchivedTodos((current) => {
+        const filtered = current.filter((item) => item.id !== tempId && item.id !== created.id);
+        return created.archivedAt ? [created, ...filtered] : filtered;
+      });
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.delete(tempId);
+        next.set(created.id, "synced");
+        return next;
+      });
     }
-    return created;
+
+    // Always refresh from the server to guarantee state matches what was persisted.
+    const refreshed = await refreshTodos();
+    if (refreshed.error) {
+      return { success: false, error: refreshed.error };
+    }
+
+    const newId = created?.id ?? data?.[0]?.id;
+    const matched = refreshed.data.find((item) => item.id === newId) ?? created;
+    if (matched) {
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(matched.id, "synced");
+        return next;
+      });
+      return { success: true, todo: matched };
+    }
+
+    setSyncStateById((prev) => {
+      const next = new Map(prev);
+      if (newId) {
+        next.set(newId, "failed");
+      }
+      return next;
+    });
+    return { success: false, error: new Error("Unable to confirm the new task was saved.") };
   };
 
   const updateTodo = async (id, updates) => {
     if (!user || !id) return null;
+
+    setSyncStateById((prev) => {
+      const next = new Map(prev);
+      next.set(id, "syncing");
+      return next;
+    });
 
     const { data, error } = await supabase
       .from("todos")
@@ -193,12 +278,22 @@ export function useTodos() {
 
     if (error) {
       console.error("Error updating todo:", error);
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(id, "failed");
+        return next;
+      });
       return null;
     }
 
     const updated = mapTodoFromDatabase(data?.[0]);
     if (updated) {
       upsertTodoInState(updated);
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(updated.id, "synced");
+        return next;
+      });
     }
     return updated;
   };
@@ -239,6 +334,7 @@ export function useTodos() {
     setTodos,
     archivedTodos,
     setArchivedTodos,
+    syncStateById,
     stats,
     addTodo,
     updateTodo,

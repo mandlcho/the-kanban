@@ -36,6 +36,7 @@ function TodoListItem({
   onUpdateStatus,
   onUpdatePriority,
   onDismiss,
+  syncState = "synced",
   dragState = null,
   categoryLookup = null,
   calendarFocusDate = "",
@@ -180,6 +181,13 @@ function TodoListItem({
     onDrop: handleDrop
   };
 
+  const syncLabel =
+    syncState === "syncing"
+      ? "syncing…"
+      : syncState === "failed"
+      ? "sync failed"
+      : "synced";
+
   const footerActions =
     todo.status === "backlog" || todo.status === "active" ? (
       <div className="todo-actions">
@@ -227,6 +235,9 @@ function TodoListItem({
           >
             {currentPriority}
           </button>
+          <span className={`todo-sync-status status-${syncState}`}>
+            {syncLabel}
+          </span>
           <button
             type="button"
             className="todo-dismiss"
