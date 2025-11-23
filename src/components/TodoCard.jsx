@@ -37,6 +37,7 @@ function TodoCard({
   todo,
   actions,
   syncState = "synced",
+  onRetrySync = null,
   dragState = null,
   categoryLookup = null,
   animationRef = null,
@@ -198,6 +199,12 @@ function TodoCard({
       ? "sync failed"
       : "synced";
 
+  const handleRetryClick = () => {
+    if (syncState === "failed" && typeof onRetrySync === "function") {
+      onRetrySync(todo.id);
+    }
+  };
+
   return (
     <li
       className={className}
@@ -223,9 +230,21 @@ function TodoCard({
           >
             {currentPriority}
           </button>
-          <span className={`todo-sync-status status-${syncState}`}>
+          <button
+            type="button"
+            className={`todo-sync-status status-${syncState}${
+              syncState === "failed" ? " todo-sync-retry" : ""
+            }`}
+            onClick={handleRetryClick}
+            aria-label={
+              syncState === "failed"
+                ? `sync failed for ${todo.title}. click to retry.`
+                : `sync status: ${syncLabel}`
+            }
+            disabled={syncState !== "failed"}
+          >
             {syncLabel}
-          </span>
+          </button>
           <button
             type="button"
             className="todo-dismiss"

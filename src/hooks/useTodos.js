@@ -8,6 +8,7 @@ const createId = () =>
   (typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `tmp-${Math.random().toString(16).slice(2)}`);
+const isTempId = (id) => typeof id === "string" && id.startsWith("tmp-");
 
 const mapTodoFromDatabase = (row) => {
   if (!row) return null;
@@ -261,6 +262,92 @@ export function useTodos() {
     return { success: false, error: new Error("Unable to confirm the new task was saved.") };
   };
 
+  const retryTodoSync = async (id) => {
+    if (!user || !id) return { success: false, error: new Error("Missing todo id.") };
+
+    const syncState = syncStateById.get(id);
+    if (syncState !== "failed") {
+      return { success: false, error: new Error("Nothing to retry.") };
+    }
+
+    const allTodos = [...todos, ...archivedTodos];
+    const todo = allTodos.find((item) => item.id === id);
+    if (!todo) {
+      return { success: false, error: new Error("Todo not found in state.") };
+    }
+
+    setSyncStateById((prev) => {
+      const next = new Map(prev);
+      next.set(id, "syncing");
+      return next;
+    });
+
+    if (isTempId(todo.id)) {
+      const { data, error } = await supabase
+        .from("todos")
+        .insert([{ ...mapTodoToDatabase(todo), user_id: user.id }])
+        .select();
+
+      if (error) {
+        console.error("Error retrying todo insert:", error);
+        setSyncStateById((prev) => {
+          const next = new Map(prev);
+          next.set(id, "failed");
+          return next;
+        });
+        return { success: false, error };
+      }
+
+      const created = mapTodoFromDatabase(data?.[0]);
+      if (created) {
+        setTodos((current) => {
+          const filtered = current.filter((item) => item.id !== id && item.id !== created.id);
+          return created.archivedAt ? filtered : [created, ...filtered];
+        });
+        setArchivedTodos((current) => {
+          const filtered = current.filter((item) => item.id !== id && item.id !== created.id);
+          return created.archivedAt ? [created, ...filtered] : filtered;
+        });
+        setSyncStateById((prev) => {
+          const next = new Map(prev);
+          next.delete(id);
+          next.set(created.id, "synced");
+          return next;
+        });
+        return { success: true, todo: created };
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("todos")
+      .update(mapTodoToDatabase(todo))
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      console.error("Error retrying todo update:", error);
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(id, "failed");
+        return next;
+      });
+      return { success: false, error };
+    }
+
+    const updated = mapTodoFromDatabase(data?.[0]);
+    if (updated) {
+      upsertTodoInState(updated);
+      setSyncStateById((prev) => {
+        const next = new Map(prev);
+        next.set(updated.id, "synced");
+        return next;
+      });
+      return { success: true, todo: updated };
+    }
+
+    return { success: false, error: new Error("Unable to retry sync.") };
+  };
+
   const updateTodo = async (id, updates) => {
     if (!user || !id) return null;
 
@@ -338,6 +425,7 @@ export function useTodos() {
     stats,
     addTodo,
     updateTodo,
+    retryTodoSync,
     deleteTodo,
     loading
   };

@@ -742,6 +742,15 @@
   text-transform: none;
   color: var(--color-text);
   background: var(--color-surface-muted);
+  cursor: default;
+}
+
+.todo-sync-status:disabled {
+  opacity: 1;
+}
+
+.todo-sync-status.todo-sync-retry {
+  cursor: pointer;
 }
 
 .todo-sync-status::before {

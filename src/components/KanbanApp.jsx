@@ -35,6 +35,7 @@ function KanbanApp() {
     syncStateById,
     addTodo, 
     updateTodo, 
+    retryTodoSync,
     deleteTodo,
     loading: todosLoading 
   } = useTodos();
@@ -438,7 +439,8 @@ function KanbanApp() {
       updateTodoStatus,
       updateTodoPriority,
       handleDismiss,
-      syncStateById
+      syncStateById,
+      retryTodoSync
     }),
     [
       toggleTodo,
@@ -446,7 +448,8 @@ function KanbanApp() {
       updateTodoStatus,
       updateTodoPriority,
       handleDismiss,
-      syncStateById
+      syncStateById,
+      retryTodoSync
     ]
   );
 

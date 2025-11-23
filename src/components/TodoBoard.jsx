@@ -116,6 +116,7 @@ function TodoBoard({
                           ? actions.syncStateById.get(todo.id) ?? "synced"
                           : "synced"
                       }
+                      onRetrySync={actions.retryTodoSync}
                       dragState={cardDnD}
                       categoryLookup={categoryLookup}
                       animationRef={registerCard(todo.id)}

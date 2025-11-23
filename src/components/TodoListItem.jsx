@@ -37,6 +37,7 @@ function TodoListItem({
   onUpdatePriority,
   onDismiss,
   syncState = "synced",
+  onRetrySync = null,
   dragState = null,
   categoryLookup = null,
   calendarFocusDate = "",
@@ -188,6 +189,12 @@ function TodoListItem({
       ? "sync failed"
       : "synced";
 
+  const handleRetryClick = () => {
+    if (syncState === "failed" && typeof onRetrySync === "function") {
+      onRetrySync(todo.id);
+    }
+  };
+
   const footerActions =
     todo.status === "backlog" || todo.status === "active" ? (
       <div className="todo-actions">
@@ -235,9 +242,21 @@ function TodoListItem({
           >
             {currentPriority}
           </button>
-          <span className={`todo-sync-status status-${syncState}`}>
+          <button
+            type="button"
+            className={`todo-sync-status status-${syncState}${
+              syncState === "failed" ? " todo-sync-retry" : ""
+            }`}
+            onClick={handleRetryClick}
+            aria-label={
+              syncState === "failed"
+                ? `sync failed for ${todo.title}. click to retry.`
+                : `sync status: ${syncLabel}`
+            }
+            disabled={syncState !== "failed"}
+          >
             {syncLabel}
-          </span>
+          </button>
           <button
             type="button"
             className="todo-dismiss"

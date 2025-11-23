@@ -79,6 +79,7 @@ function TodoList({
                 ? actions.syncStateById.get(todo.id) ?? "synced"
                 : "synced"
             }
+            onRetrySync={actions.retryTodoSync}
             dragState={dragState}
             categoryLookup={categoryLookup}
             calendarFocusDate={calendarFocusDate}
