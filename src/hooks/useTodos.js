@@ -98,7 +98,7 @@ export function useTodos() {
   const [loading, setLoading] = useState(true);
   const [syncStateById, setSyncStateById] = useState(new Map());
   const [syncErrorById, setSyncErrorById] = useState(new Map());
-  const [supportsCategories, setSupportsCategories] = useState(true);
+  const [supportsCategories, setSupportsCategories] = useState(false);
   const user = session?.user;
 
   const refreshTodos = useCallback(async () => {
