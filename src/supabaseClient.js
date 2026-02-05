@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 // Fallbacks help when GitHub Pages builds do not inject env vars.
 const DEFAULT_SUPABASE_URL = "https://sxgapwnjwraglnvjcqja.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
-  "sb_publishable_WohowMQtpWgIyThqvwNZ9Q_IcBmdEcb";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4Z2Fwd25qd3JhZ2xudmpjcWphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDY2NjUsImV4cCI6MjA3OTIyMjY2NX0.l3xg4GtSMos4CHBBkbo6QRFbbxPEeD_nBjfNByZs-rw";
 
 const globalConfig =
   typeof window !== "undefined" && window.__SUPABASE_CONFIG__
@@ -11,9 +11,7 @@ const globalConfig =
     : {};
 
 const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  globalConfig.url ||
-  DEFAULT_SUPABASE_URL;
+  import.meta.env.VITE_SUPABASE_URL || globalConfig.url || DEFAULT_SUPABASE_URL;
 const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   globalConfig.anonKey ||
