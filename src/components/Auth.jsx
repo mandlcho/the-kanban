@@ -25,6 +25,22 @@ export default function Auth() {
   // ------------------------------------------------------------------
   const showPassword = false; // keep PIN fields always masked
 
+  /**
+   * Strip everything that is NOT a valid base64url character.
+   * Mobile keyboards / clipboards can inject newlines, zero-width spaces,
+   * BOM, and other invisible Unicode into pasted text.  The vault token is
+   * purely [A-Za-z0-9_-], so anything else is noise.
+   */
+  const sanitizeToken = (raw) => raw.replace(/[^A-Za-z0-9_-]/g, "");
+
+  /**
+   * Trim all Unicode whitespace from both ends of a string.
+   * String.prototype.trim() only removes ASCII whitespace; mobile
+   * keyboards can append U+00A0 (nbsp) or other whitespace-class chars.
+   */
+  const sanitizePin = (raw) =>
+    raw.replace(/^[\s\u00A0\uFEFF]+|[\s\u00A0\uFEFF]+$/g, "");
+
   const reset = () => {
     setPin("");
     setPinConfirm("");
@@ -64,15 +80,17 @@ export default function Auth() {
   const handleJoin = async (event) => {
     event.preventDefault();
     setLocalError("");
-    if (!vaultCode.trim()) {
+    const cleanCode = sanitizeToken(vaultCode);
+    const cleanPin = sanitizePin(pin);
+    if (!cleanCode) {
       setLocalError("paste your vault code first.");
       return;
     }
-    if (!pin) {
+    if (!cleanPin) {
       setLocalError("enter your PIN.");
       return;
     }
-    await joinVault(vaultCode.trim(), pin);
+    await joinVault(cleanCode, cleanPin);
   };
 
   // ------------------------------------------------------------------
