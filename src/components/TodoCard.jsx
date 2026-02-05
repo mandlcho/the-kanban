@@ -205,6 +205,9 @@ function TodoCard({
 
   return (
     <li className={className} ref={animationRef} {...mergedDragProps}>
+      <span className="drag-handle" aria-hidden="true">
+        ⠿
+      </span>
       <div className="todo-card-header">
         <label className="todo-label">
           <input

@@ -5,10 +5,12 @@ import TodoList from "./TodoList";
 import TodoBoard from "./TodoBoard";
 import ArchiveDrawer from "./ArchiveDrawer";
 import AppFooter from "./AppFooter";
+import BottomNav from "./BottomNav";
 import { useTodos, TODO_PRIORITIES, DEFAULT_PRIORITY } from "../hooks/useTodos";
 import { useListDragAndDrop } from "../hooks/useListDragAndDrop";
 import { useBoardDragAndDrop } from "../hooks/useBoardDragAndDrop";
 import { useThemePreference } from "../hooks/useThemePreference";
+import { useViewMode } from "../hooks/useViewMode";
 import { useCategories } from "../hooks/useCategories";
 import { PRIORITY_OPTIONS } from "../utils/todoFormatting";
 import "../App.css";
@@ -46,7 +48,7 @@ function DoWhatApp() {
   const [calendarHoverDate, setCalendarHoverDate] = useState("");
   const [filter, setFilter] = useState("backlog");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState("list");
+  const { viewMode, setViewMode } = useViewMode();
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [composerPriority, setComposerPriority] = useState(DEFAULT_PRIORITY);
   const [composerError, setComposerError] = useState("");
@@ -680,6 +682,20 @@ function DoWhatApp() {
         })()}
 
       <AppFooter
+        stats={stats}
+        onArchiveCompleted={archiveCompleted}
+        onToggleArchive={handleToggleArchive}
+        isArchiveOpen={isArchiveOpen}
+        archivedCount={archivedTodos.length}
+        archiveToggleRef={archiveToggleRef}
+      />
+
+      <BottomNav
+        filter={filter}
+        onFilterChange={setFilter}
+        columns={CARD_COLUMNS}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
         stats={stats}
         onArchiveCompleted={archiveCompleted}
         onToggleArchive={handleToggleArchive}

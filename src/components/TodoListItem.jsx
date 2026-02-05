@@ -225,6 +225,9 @@ function TodoListItem({
 
   return (
     <li className={className} {...mergedDragProps}>
+      <span className="drag-handle" aria-hidden="true">
+        ⠿
+      </span>
       <div className="todo-header">
         <label className="todo-label">
           <input
